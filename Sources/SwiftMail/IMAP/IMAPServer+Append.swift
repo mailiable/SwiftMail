@@ -20,8 +20,33 @@ extension IMAPServer {
         flags: [Flag],
         internalDate: Date?
     ) async throws -> AppendResult {
+        try await append(
+            rawMessage: Data(rawMessage.utf8),
+            to: mailbox,
+            flags: flags,
+            internalDate: internalDate
+        )
+    }
+
+    /// Append raw RFC 822 message bytes to a mailbox.
+    ///
+    /// This overload preserves arbitrary message bytes, including content that is not valid UTF-8.
+    ///
+    /// - Parameters:
+    ///   - rawMessage: The complete RFC 822 message bytes.
+    ///   - mailbox: The destination mailbox path (e.g. "Sent").
+    ///   - flags: Flags to set on the appended message.
+    ///   - internalDate: Optional internal date to store on the server.
+    /// - Returns: ``AppendResult`` describing server-assigned identifiers.
+    @discardableResult
+    public func append(
+        rawMessage: Data,
+        to mailbox: String,
+        flags: [Flag],
+        internalDate: Date?
+    ) async throws -> AppendResult {
         if let limit = capabilities.globalAppendLimit {
-            let payloadSize = rawMessage.utf8.count
+            let payloadSize = rawMessage.count
             if payloadSize > limit {
                 throw IMAPError.appendLimitExceeded(payloadSize, limit)
             }

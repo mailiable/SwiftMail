@@ -53,6 +53,7 @@ final class IMAPTestServer {
     private let metricsQueue = DispatchQueue(label: "IMAPTestServer.metrics")
     private var idleCommandCountStorage = 0
     private var commandLogStorage: [String] = []
+    private var appendedMessagesStorage: [Data] = []
     private var clientFds: Set<Int32> = []
     private let clientFdsLock = NSLock()
     private let clientGroup = DispatchGroup()
@@ -92,6 +93,14 @@ final class IMAPTestServer {
 
     var commandLog: [String] {
         metricsQueue.sync { commandLogStorage }
+    }
+
+    var appendedMessages: [Data] {
+        metricsQueue.sync { appendedMessagesStorage }
+    }
+
+    private func recordAppendedMessage(_ message: Data) {
+        metricsQueue.sync { appendedMessagesStorage.append(message) }
     }
 
     private func recordIdleCommand() {
@@ -309,13 +318,27 @@ final class IMAPTestServer {
         defer { readBuf.deallocate() }
 
         var idleTag: String?  // non-nil while in IDLE state
+        var pendingAppend: (tag: String, byteCount: Int)?
 
         while true {
             let bytesRead = read(fileDescriptor, readBuf, 65536)
             if bytesRead <= 0 { break }
             buffer.append(readBuf, count: bytesRead)
 
-            while let crlfRange = buffer.range(of: Data("\r\n".utf8)) {
+            while true {
+                if let append = pendingAppend {
+                    guard buffer.count >= append.byteCount + 2 else { break }
+                    let message = Data(buffer.prefix(append.byteCount))
+                    buffer.removeFirst(append.byteCount)
+                    guard buffer.starts(with: Data("\r\n".utf8)) else { return }
+                    buffer.removeFirst(2)
+                    recordAppendedMessage(message)
+                    sendLine(fd: fileDescriptor, "\(append.tag) OK APPEND completed\r\n")
+                    pendingAppend = nil
+                    continue
+                }
+
+                guard let crlfRange = buffer.range(of: Data("\r\n".utf8)) else { break }
                 let lineData = buffer[buffer.startIndex..<crlfRange.lowerBound]
                 buffer = Data(buffer[crlfRange.upperBound...])
 
@@ -339,6 +362,14 @@ final class IMAPTestServer {
                 let args = parts.count > 2 ? parts[2] : ""
                 recordCommand(line)
 
+                if command == "APPEND", let byteCount = appendLiteralByteCount(in: args) {
+                    pendingAppend = (tag, byteCount)
+                    if !args.hasSuffix("+}") {
+                        sendLine(fd: fileDescriptor, "+ Ready for literal data\r\n")
+                    }
+                    continue
+                }
+
                 if command == "IDLE" {
                     recordIdleCommand()
                     sendLine(fd: fileDescriptor, "+ idling\r\n")
@@ -360,6 +391,14 @@ final class IMAPTestServer {
                 }
             }
         }
+    }
+
+    private func appendLiteralByteCount(in arguments: String) -> Int? {
+        guard let openingBrace = arguments.lastIndex(of: "{") else { return nil }
+        let literal = arguments[arguments.index(after: openingBrace)...]
+        guard literal.last == "}" else { return nil }
+        let byteCountText = literal.dropLast()
+        return Int(byteCountText.last == "+" ? byteCountText.dropLast() : byteCountText)
     }
 
     private func resetClientTrackingForStart() {

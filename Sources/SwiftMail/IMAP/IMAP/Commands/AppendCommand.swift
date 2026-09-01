@@ -9,7 +9,7 @@ struct AppendCommand: IMAPCommand {
     typealias HandlerType = AppendHandler
 
     let mailboxName: String
-    let message: String
+    let message: Data
     let flags: [Flag]
     let internalDate: ServerMessageDate?
 
@@ -22,8 +22,8 @@ struct AppendCommand: IMAPCommand {
     }
 
     func send(on channel: Channel, tag: String) async throws {
-        var messageBuffer = channel.allocator.buffer(capacity: message.utf8.count)
-        messageBuffer.writeString(message)
+        var messageBuffer = channel.allocator.buffer(capacity: message.count)
+        messageBuffer.writeBytes(message)
 
         var mailboxBuffer = channel.allocator.buffer(capacity: mailboxName.utf8.count)
         mailboxBuffer.writeString(mailboxName)
