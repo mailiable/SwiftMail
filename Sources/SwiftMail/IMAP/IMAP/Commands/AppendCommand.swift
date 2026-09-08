@@ -45,3 +45,48 @@ struct AppendCommand: IMAPCommand {
         channel.writeAndFlush(IMAPClientHandler.OutboundIn.part(.append(.finish)), promise: nil)
     }
 }
+
+// Both primary and named connections use the same limit check and date conversion.
+extension AppendCommand {
+    init(mailboxName: String, message: Data, flags: [Flag], date: Date?, appendLimit: Int?) throws {
+        if let limit = appendLimit, message.count > limit {
+            throw IMAPError.appendLimitExceeded(message.count, limit)
+        }
+        self.init(mailboxName: mailboxName, message: message, flags: flags,
+                  internalDate: date.flatMap(makeInternalDate(from:)))
+    }
+}
+
+private func makeInternalDate(from date: Date) -> ServerMessageDate? {
+    var calendar = Calendar(identifier: .gregorian)
+    let timeZone = TimeZone.current
+    calendar.timeZone = timeZone
+
+    let components = calendar.dateComponents([.year, .month, .day, .hour, .minute, .second], from: date)
+    guard
+        let year = components.year,
+        let month = components.month,
+        let day = components.day,
+        let hour = components.hour,
+        let minute = components.minute
+    else {
+        return nil
+    }
+
+    let second = components.second ?? 0
+    let zoneMinutes = timeZone.secondsFromGMT(for: date) / 60
+
+    guard let serverComponents = ServerMessageDate.Components(
+        year: year,
+        month: month,
+        day: day,
+        hour: hour,
+        minute: minute,
+        second: second,
+        timeZoneMinutes: zoneMinutes
+    ) else {
+        return nil
+    }
+
+    return ServerMessageDate(serverComponents)
+}

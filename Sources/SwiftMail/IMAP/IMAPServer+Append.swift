@@ -45,18 +45,9 @@ extension IMAPServer {
         flags: [Flag],
         internalDate: Date?
     ) async throws -> AppendResult {
-        if let limit = capabilities.globalAppendLimit {
-            let payloadSize = rawMessage.count
-            if payloadSize > limit {
-                throw IMAPError.appendLimitExceeded(payloadSize, limit)
-            }
-        }
-        let serverDate = internalDate.flatMap(makeInternalDate(from:))
-        let command = AppendCommand(
-            mailboxName: resolveMailboxPath(mailbox),
-            message: rawMessage,
-            flags: flags,
-            internalDate: serverDate
+        let command = try AppendCommand(
+            mailboxName: resolveMailboxPath(mailbox), message: rawMessage, flags: flags,
+            date: internalDate, appendLimit: capabilities.globalAppendLimit
         )
         return try await executeCommand(command)
     }
@@ -133,41 +124,5 @@ extension IMAPServer {
         draft.additionalHeaders = headers
 
         return try await append(email: draft, to: targetMailbox, flags: flags, internalDate: date)
-    }
-
-    // MARK: - Append Helpers
-
-    func makeInternalDate(from date: Date) -> ServerMessageDate? {
-        var calendar = Calendar(identifier: .gregorian)
-        let timeZone = TimeZone.current
-        calendar.timeZone = timeZone
-
-        let components = calendar.dateComponents([.year, .month, .day, .hour, .minute, .second], from: date)
-        guard
-            let year = components.year,
-            let month = components.month,
-            let day = components.day,
-            let hour = components.hour,
-            let minute = components.minute
-        else {
-            return nil
-        }
-
-        let second = components.second ?? 0
-        let zoneMinutes = timeZone.secondsFromGMT(for: date) / 60
-
-        guard let serverComponents = ServerMessageDate.Components(
-            year: year,
-            month: month,
-            day: day,
-            hour: hour,
-            minute: minute,
-            second: second,
-            timeZoneMinutes: zoneMinutes
-        ) else {
-            return nil
-        }
-
-        return ServerMessageDate(serverComponents)
     }
 }

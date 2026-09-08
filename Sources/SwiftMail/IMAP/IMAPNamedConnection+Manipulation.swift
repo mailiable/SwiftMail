@@ -1,6 +1,23 @@
 import Foundation
 
 extension IMAPNamedConnection {
+    /// Append raw RFC 822 bytes using this connection's command queue.
+    /// The destination is explicit and does not change the selected mailbox.
+    @discardableResult
+    public func append(
+        rawMessage: Data,
+        to mailbox: String,
+        flags: [Flag],
+        internalDate: Date?
+    ) async throws -> AppendResult {
+        try await ensureAuthenticated()
+        let command = try AppendCommand(
+            mailboxName: resolveMailboxPath(mailbox), message: rawMessage, flags: flags,
+            date: internalDate, appendLimit: capabilities.globalAppendLimit
+        )
+        return try await executeCommand(command)
+    }
+
     /// Copy messages to another mailbox.
     ///
     /// - Returns: A ``CopyUID`` with the server-verified source-to-destination UID mapping,
