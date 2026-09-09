@@ -5,9 +5,9 @@ import Foundation
 import NIOIMAPCore
 
 /// Represents the data for an IMAP STORE command
-public struct StoreData {
+public struct StoreData: Sendable {
     /// The type of store operation
-    public enum StoreType {
+    public enum StoreType: Sendable {
         case add
         case remove
         case replace
