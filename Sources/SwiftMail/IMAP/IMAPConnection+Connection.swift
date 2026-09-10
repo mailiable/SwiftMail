@@ -26,6 +26,7 @@ extension IMAPConnection {
 
         self.channel = channel
         self.isSessionAuthenticated = false
+        self.mailboxNeedsSelection = selectedMailbox != nil
         self.namespaces = nil
 
         logger.info("\(connectionContext) Connected; response buffer limit \(responseBufferLimit) bytes")
@@ -247,6 +248,7 @@ extension IMAPConnection {
     }
 
     func disconnectBody() async throws {
+        mailboxNeedsSelection = selectedMailbox != nil
         guard let channel = self.channel else {
             logger.warning("\(connectionContext) Attempted to disconnect when channel was already nil")
             isSessionAuthenticated = false
@@ -276,6 +278,7 @@ extension IMAPConnection {
         if let channel = self.channel, !channel.isActive {
             logger.info("\(connectionContext) Channel is no longer active, clearing channel reference")
             self.channel = nil
+            self.mailboxNeedsSelection = selectedMailbox != nil
             self.isSessionAuthenticated = false
             self.idleHandler = nil
             self.idleTerminationInProgress = false

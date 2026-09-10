@@ -69,7 +69,13 @@ public actor IMAPServer {
     var pendingNamedConnectionWaiters: [String: [CheckedContinuation<IMAPNamedConnection, any Error>]] = [:]
 
     /// Authentication configuration for spawning new connections.
-    var authentication: Authentication?
+    var authentication: Authentication? {
+        didSet {
+            primaryConnection.authenticateSession = authentication.map { authentication in
+                { connection in try await authentication.authenticate(on: connection) }
+            }
+        }
+    }
 
     /// RFC 2971 client identity replayed after every successful
     /// authentication on every connection this server opens (primary,
@@ -147,20 +153,21 @@ public actor IMAPServer {
         var identification: Identification?
 
         func authenticate(on connection: IMAPConnection) async throws {
-            switch method {
-                case .login(let username, let password):
-                    try await connection.login(username: username, password: password)
-                case .plain(let username, let password):
-                    try await connection.authenticatePlain(username: username, password: password)
-                case .xoauth2(let email, let accessTokenProvider):
-                    let accessToken = try await accessTokenProvider()
-                    try await connection.authenticateXOAUTH2(email: email, accessToken: accessToken)
+            try await connection.withAuthentication {
+                guard !connection.isSessionAuthenticated else { return }
+                switch method {
+                    case .login(let username, let password):
+                        try await connection.login(username: username, password: password)
+                    case .plain(let username, let password):
+                        try await connection.authenticatePlain(username: username, password: password)
+                    case .xoauth2(let email, let accessTokenProvider):
+                        let accessToken = try await accessTokenProvider()
+                        try await connection.authenticateXOAUTH2(email: email, accessToken: accessToken)
+                }
+                if let identification {
+                    try await Self.identify(connection, with: identification)
+                }
             }
-            // RFC 2971: some servers (e.g. NetEase 163/126) reject SELECT on any
-            // authenticated connection that has not identified itself, so the
-            // stored identity is replayed after every authentication.
-            guard let identification else { return }
-            try await Self.identify(connection, with: identification)
         }
 
         /// Replays the stored RFC 2971 identity on a freshly authenticated

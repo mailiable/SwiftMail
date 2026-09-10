@@ -53,6 +53,7 @@ final class IMAPTestServer {
     private let metricsQueue = DispatchQueue(label: "IMAPTestServer.metrics")
     private var idleCommandCountStorage = 0
     private var commandLogStorage: [String] = []
+    private var suppliedResponses: [String: [String]] = [:]
     private var appendedMessagesStorage: [Data] = []
     private var clientFds: Set<Int32> = []
     private let clientFdsLock = NSLock()
@@ -93,6 +94,19 @@ final class IMAPTestServer {
 
     var commandLog: [String] {
         metricsQueue.sync { commandLogStorage }
+    }
+
+    /// Supplies a protocol response for the next command of this name. $TAG is
+    /// replaced with the command tag received from the client.
+    func enqueueResponse(_ response: String, for command: String) {
+        metricsQueue.sync { suppliedResponses[command, default: []].append(response) }
+    }
+
+    private func nextResponse(for command: String, tag: String) -> String? {
+        metricsQueue.sync {
+            guard suppliedResponses[command]?.isEmpty == false else { return nil }
+            return suppliedResponses[command]?.removeFirst().replacingOccurrences(of: "$TAG", with: tag)
+        }
     }
 
     var appendedMessages: [Data] {
@@ -361,6 +375,10 @@ final class IMAPTestServer {
                 let command = parts[1].uppercased()
                 let args = parts.count > 2 ? parts[2] : ""
                 recordCommand(line)
+                if let response = nextResponse(for: command, tag: tag) {
+                    sendLine(fd: fileDescriptor, response)
+                    continue
+                }
 
                 if command == "APPEND", let byteCount = appendLiteralByteCount(in: args) {
                     pendingAppend = (tag, byteCount)

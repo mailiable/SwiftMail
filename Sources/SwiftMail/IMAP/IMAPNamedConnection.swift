@@ -33,6 +33,7 @@ public actor IMAPNamedConnection {
         self.name = name
         self.connection = connection
         self.authenticateOnConnection = authenticateOnConnection
+        connection.authenticateSession = authenticateOnConnection
     }
 
     /// Whether the underlying transport channel is currently active.

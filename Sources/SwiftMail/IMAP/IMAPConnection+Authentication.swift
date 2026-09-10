@@ -5,11 +5,24 @@ import NIO
 
 extension IMAPConnection {
     func login(username: String, password: String) async throws {
-        let command = LoginCommand(username: username, password: password)
-        let loginCapabilities = try await executeCommand(command)
-        isSessionAuthenticated = true
-        try await refreshCapabilities(using: loginCapabilities)
-        await fetchNamespacesIfSupported(useCommandBody: false)
+        try await withAuthentication {
+            let command = LoginCommand(username: username, password: password)
+            let loginCapabilities = try await executeCommand(command)
+            isSessionAuthenticated = true
+            try await refreshCapabilities(using: loginCapabilities)
+            await fetchNamespacesIfSupported(useCommandBody: false)
+        }
+    }
+
+    func withAuthentication(_ authenticate: () async throws -> Void) async throws {
+        try await commandQueue.run {
+            let wasPreparingSession = isPreparingSession
+            isPreparingSession = true
+            defer { isPreparingSession = wasPreparingSession }
+            clearInvalidChannel()
+            if channel == nil { try await connectBody() }
+            try await authenticate()
+        }
     }
 
     /// Authenticate using AUTHENTICATE PLAIN (RFC 4616) with optional SASL-IR (RFC 4959).
@@ -18,13 +31,13 @@ extension IMAPConnection {
     /// AUTHENTICATE command (saving a round trip). Otherwise falls back to the standard
     /// continuation-based exchange.
     func authenticatePlain(username: String, password: String) async throws {
-        try await commandQueue.run { [self] in
+        try await withAuthentication { [self] in
             try await self.authenticatePlainBody(username: username, password: password)
         }
     }
 
     func authenticateXOAUTH2(email: String, accessToken: String) async throws {
-        try await commandQueue.run { [self] in
+        try await withAuthentication { [self] in
             try await self.authenticateXOAUTH2Body(email: email, accessToken: accessToken)
         }
     }

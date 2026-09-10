@@ -30,6 +30,16 @@ final class IMAPConnection {
     var capabilities: Set<NIOIMAPCore.Capability> = []
     var namespaces: NamespaceResponse?
     var isSessionAuthenticated: Bool = false
+    var authenticateSession: ((IMAPConnection) async throws -> Void)?
+    var isPreparingSession = false
+    var selectedMailbox: SelectedMailboxState?
+    var mailboxNeedsSelection = false
+
+    struct SelectedMailboxState {
+        let name: String
+        let readOnly: Bool
+        let uidValidity: UIDValidity
+    }
     var idleHandler: IdleHandler?
     var idleTerminationInProgress: Bool = false
     let commandQueue = IMAPCommandQueue()
@@ -243,7 +253,7 @@ final class IMAPConnection {
 
     func connect() async throws {
         try await commandQueue.run { [self] in
-            try await self.connectBody()
+            try await self.prepareSession()
         }
     }
 

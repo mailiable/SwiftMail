@@ -135,20 +135,16 @@ import Testing
                 try await server.primaryConnection.disconnect()
                 try await named.disconnect()
 
-                await expectMoveAttemptAfterReauthentication {
-                    try await server.move(
-                        messages: UIDSet(UID(1)),
-                        to: "Archive",
-                        fallback: .disabled
-                    )
-                }
-                await expectMoveAttemptAfterReauthentication {
-                    try await named.move(
-                        messages: UIDSet(UID(1)),
-                        to: "Archive",
-                        fallback: .disabled
-                    )
-                }
+                _ = try await server.move(
+                    messages: UIDSet(UID(1)),
+                    to: "Archive",
+                    fallback: .disabled
+                )
+                _ = try await named.move(
+                    messages: UIDSet(UID(1)),
+                    to: "Archive",
+                    fallback: .disabled
+                )
 
                 let moveCommands = testServer.commandLog
                     .map { $0.uppercased() }
@@ -201,22 +197,6 @@ import Testing
 
         private func assertOnlyAtomicMoveWasEmitted(_ commands: [String]) {
             assertOnlyMovesWereEmitted(commands, count: 1)
-        }
-
-        private func expectMoveAttemptAfterReauthentication(
-            _ operation: () async throws -> CopyUID?
-        ) async {
-            do {
-                _ = try await operation()
-                Issue.record("Expected MOVE to report possible partial completion")
-            } catch let error as IMAPError {
-                guard case .moveFailedAfterPossiblePartialCompletion = error else {
-                    Issue.record("Expected possible partial completion after authenticated MOVE, got \(error)")
-                    return
-                }
-            } catch {
-                Issue.record("Expected IMAPError.moveFailedAfterPossiblePartialCompletion, got \(error)")
-            }
         }
 
         private func assertOnlyMovesWereEmitted(_ commands: [String], count: Int) {

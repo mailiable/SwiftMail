@@ -66,11 +66,11 @@ extension IMAPConnection {
         try await waitForIdleCompletionIfNeeded()
         try await recycleConnectionIfBufferedTerminationIfNeeded(operation: String(describing: CommandType.self))
 
-        clearInvalidChannel()
-
-        if self.channel == nil {
-            logger.info("\(connectionContext) Channel is nil, re-establishing connection before sending command")
-            try await connectBody()
+        let selectsMailbox = command is SelectMailboxCommand || command is ExamineMailboxCommand
+        try await prepareSession(restoringMailbox: !selectsMailbox)
+        if selectsMailbox && !isPreparingSession {
+            selectedMailbox = nil
+            mailboxNeedsSelection = false
         }
 
         guard let channel = self.channel, channel.isActive else {
@@ -86,7 +86,7 @@ extension IMAPConnection {
             promise: resultPromise
         )
 
-        return try await runCommandHandler(
+        let result = try await runCommandHandler(
             CommandHandlerRun(
                 command: command,
                 channel: channel,
@@ -96,6 +96,8 @@ extension IMAPConnection {
                 scheduledTask: scheduledTask
             )
         )
+        recordMailboxSelection(command: command, result: result)
+        return result
     }
 
     private struct CommandHandlerRun<CommandType: IMAPCommand> {
