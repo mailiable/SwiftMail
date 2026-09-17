@@ -69,7 +69,31 @@ struct StoreCommand<T: MessageIdentifier>: IMAPTaggedCommand {
     let identifierSet: MessageIdentifierSet<T>
 
     /// The data to store
-    let data: StoreData
+    let data: NIOIMAPCore.StoreData
+
+    init(identifierSet: MessageIdentifierSet<T>, data: StoreData) {
+        self.identifierSet = identifierSet
+        self.data = data.toNIO()
+    }
+
+    init(identifierSet: MessageIdentifierSet<T>, gmailLabels: [String]) throws {
+        self.identifierSet = identifierSet
+        let labels = try gmailLabels.map { label -> GmailLabel in
+            guard !label.isEmpty else {
+                throw IMAPError.invalidArgument("Gmail labels must not be empty")
+            }
+            if label.hasPrefix("\\") {
+                guard label.count > 1, label.dropFirst().utf8.allSatisfy({
+                    (65...90).contains($0) || (97...122).contains($0)
+                }) else {
+                    throw IMAPError.invalidArgument("Invalid Gmail system label: \(label)")
+                }
+                return GmailLabel(ByteBuffer(string: label))
+            }
+            return GmailLabel(mailboxName: try MailboxPath.makeRootMailbox(displayName: label).name)
+        }
+        self.data = .gmailLabels(.replace(silent: true, gmailLabels: labels))
+    }
 
     /// Validate the command before execution
     func validate() throws {
@@ -83,9 +107,9 @@ struct StoreCommand<T: MessageIdentifier>: IMAPTaggedCommand {
     /// - Returns: A TaggedCommand ready to be sent to the server
     func toTaggedCommand(tag: String) -> TaggedCommand {
         if T.self == UID.self {
-            return TaggedCommand(tag: tag, command: .uidStore(.set(identifierSet.toNIOSet()), [], data.toNIO()))
+            return TaggedCommand(tag: tag, command: .uidStore(.set(identifierSet.toNIOSet()), [], data))
         } else {
-            return TaggedCommand(tag: tag, command: .store(.set(identifierSet.toNIOSet()), [], data.toNIO()))
+            return TaggedCommand(tag: tag, command: .store(.set(identifierSet.toNIOSet()), [], data))
         }
     }
 }

@@ -131,6 +131,7 @@ struct FetchGmailAttributesTests {
     private func makeGmailHarness() async throws -> (server: SwiftMail.IMAPServer, channel: NIOAsyncTestingChannel) {
         let server = SwiftMail.IMAPServer(host: "localhost", port: 143, useTLS: false)
         let connection = await server.primaryConnection
+        connection.replaceCapabilitiesForTesting([.gmailExtensions])
 
         let channel = NIOAsyncTestingChannel()
         let address = try SocketAddress(ipAddress: "127.0.0.1", port: 143)

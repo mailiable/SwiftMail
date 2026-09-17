@@ -43,6 +43,7 @@ let package = Package(
             targets: ["SwiftSMTPCLI"])
     ] : []),
     dependencies: [
+        .package(url: "https://github.com/pointfreeco/swift-custom-dump", from: "1.0.0"),
         .package(url: "https://github.com/thebarndog/swift-dotenv", from: "2.1.0"),
 		.package(url: "https://github.com/apple/swift-log.git", from: "1.0.0"),
         // Cross-platform Foundation compatibility shims (UTType, charset/IANA
@@ -102,6 +103,7 @@ let package = Package(
             name: "SwiftIMAPTests",
             dependencies: [
                 "SwiftMail",
+                .product(name: "CustomDump", package: "swift-custom-dump"),
                 .product(name: "Testing", package: "swift-testing"),
                 .product(name: "NIO", package: "swift-nio"),
                 .product(name: "NIOEmbedded", package: "swift-nio"),
