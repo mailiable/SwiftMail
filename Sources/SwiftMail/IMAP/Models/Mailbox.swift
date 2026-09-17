@@ -52,6 +52,10 @@ public enum Mailbox {
 
             /// The mailbox is the primary inbox
             public static let inbox = Attributes(rawValue: 1 << 11)
+            /// The mailbox contains all messages.
+            public static let all = Attributes(rawValue: 1 << 12)
+            /// The mailbox contains messages marked important by the provider.
+            public static let important = Attributes(rawValue: 1 << 13)
 
             init(from attributes: [NIOIMAPCore.MailboxInfo.Attribute]) {
                 var result: Attributes = []
@@ -83,7 +87,9 @@ public enum Mailbox {
                 ("\\Junk", .junk),
                 ("\\Sent", .sent),
                 ("\\Trash", .trash),
-                ("\\Inbox", .inbox)
+                ("\\Inbox", .inbox),
+                ("\\All", .all),
+                ("\\Important", .important)
             ]
 
             private static func specialUseAttribute(for raw: String) -> Attributes {
@@ -215,6 +221,8 @@ extension Mailbox.Info.Attributes: CustomStringConvertible {
 
         // Add special-use attributes
         if contains(.archive) { components.append("\\Archive") }
+        if contains(.all) { components.append("\\All") }
+        if contains(.important) { components.append("\\Important") }
         if contains(.drafts) { components.append("\\Drafts") }
         if contains(.flagged) { components.append("\\Flagged") }
         if contains(.junk) { components.append("\\Junk") }
