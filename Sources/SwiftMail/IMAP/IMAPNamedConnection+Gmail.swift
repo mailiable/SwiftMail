@@ -28,4 +28,20 @@ extension IMAPNamedConnection {
         }
         try await executeCommand(command)
     }
+
+    /// Removes the supplied Gmail labels without changing any other labels.
+    /// Requires an authenticated connection advertising `X-GM-EXT-1`.
+    public func removeGmailLabels(_ labels: [String], from identifiers: UIDSet) async throws {
+        let command = try StoreCommand(
+            identifierSet: identifiers,
+            gmailLabels: labels,
+            operation: .remove
+        )
+        try command.validate()
+        try await ensureAuthenticated()
+        guard supportsGmailExtensions else {
+            throw IMAPError.commandNotSupported("X-GM-EXT-1")
+        }
+        try await executeCommand(command)
+    }
 }

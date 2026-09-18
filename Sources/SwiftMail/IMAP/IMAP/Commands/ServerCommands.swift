@@ -76,7 +76,11 @@ struct StoreCommand<T: MessageIdentifier>: IMAPTaggedCommand {
         self.data = data.toNIO()
     }
 
-    init(identifierSet: MessageIdentifierSet<T>, gmailLabels: [String]) throws {
+    init(
+        identifierSet: MessageIdentifierSet<T>,
+        gmailLabels: [String],
+        operation: GmailLabelStoreOperation = .replace
+    ) throws {
         self.identifierSet = identifierSet
         let labels = try gmailLabels.map { label -> GmailLabel in
             guard !label.isEmpty else {
@@ -92,7 +96,12 @@ struct StoreCommand<T: MessageIdentifier>: IMAPTaggedCommand {
             }
             return GmailLabel(mailboxName: try MailboxPath.makeRootMailbox(displayName: label).name)
         }
-        self.data = .gmailLabels(.replace(silent: true, gmailLabels: labels))
+        switch operation {
+        case .remove:
+            self.data = .gmailLabels(.remove(silent: true, gmailLabels: labels))
+        case .replace:
+            self.data = .gmailLabels(.replace(silent: true, gmailLabels: labels))
+        }
     }
 
     /// Validate the command before execution
@@ -112,6 +121,11 @@ struct StoreCommand<T: MessageIdentifier>: IMAPTaggedCommand {
             return TaggedCommand(tag: tag, command: .store(.set(identifierSet.toNIOSet()), [], data))
         }
     }
+}
+
+enum GmailLabelStoreOperation {
+    case remove
+    case replace
 }
 
 /// Command for expunging deleted messages

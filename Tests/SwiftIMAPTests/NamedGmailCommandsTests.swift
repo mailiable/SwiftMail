@@ -5,6 +5,26 @@ import Testing
 
 @Suite(.timeLimit(.minutes(1)))
 struct NamedGmailCommandsTests {
+    // Detects trigger removal replacing the complete Gmail label set.
+    @Test
+    func namedConnectionRemovesOnlyTheSuppliedGmailLabel() async throws {
+        let commands = try await GmailConnectionCommands()
+        let result = Task {
+            try await commands.named.removeGmailLabels(
+                ["Cloak-Uncloak"],
+                from: UIDSet([UID(42)])
+            )
+        }
+        let command = try await commands.nextCommand()
+        expectNoDifference(
+            command,
+            "A001 UID STORE 42 -X-GM-LABELS.SILENT (\"Cloak-Uncloak\")\r\n"
+        )
+        try await commands.respond("A001 OK stored\r\n")
+        try await result.value
+        try await commands.finish()
+    }
+
     // Detects empty replacement labels being ignored instead of clearing the labels.
     @Test
     func primaryConnectionClearsGmailLabels() async throws {
