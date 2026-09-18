@@ -97,6 +97,8 @@ struct StoreCommand<T: MessageIdentifier>: IMAPTaggedCommand {
             return GmailLabel(mailboxName: try MailboxPath.makeRootMailbox(displayName: label).name)
         }
         switch operation {
+        case .add:
+            self.data = .gmailLabels(.add(silent: true, gmailLabels: labels))
         case .remove:
             self.data = .gmailLabels(.remove(silent: true, gmailLabels: labels))
         case .replace:
@@ -124,6 +126,7 @@ struct StoreCommand<T: MessageIdentifier>: IMAPTaggedCommand {
 }
 
 enum GmailLabelStoreOperation {
+    case add
     case remove
     case replace
 }

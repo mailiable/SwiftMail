@@ -5,6 +5,37 @@ import Testing
 
 @Suite(.timeLimit(.minutes(1)))
 struct NamedGmailCommandsTests {
+    @Test
+    func `Named connection adds Gmail labels`() async throws {
+        let commands = try await GmailConnectionCommands()
+        let result = Task {
+            try await commands.named.addGmailLabels(
+                ["\\Inbox", "Projects"],
+                to: UIDSet([UID(42)])
+            )
+        }
+        let command = try await commands.nextCommand()
+        expectNoDifference(
+            command,
+            "A001 UID STORE 42 +X-GM-LABELS.SILENT (\\Inbox \"Projects\")\r\n"
+        )
+        try await commands.respond("A001 OK stored\r\n")
+        try await result.value
+        try await commands.finish()
+    }
+
+    @Test
+    func `Named connection searches by Gmail message ID`() async throws {
+        let commands = try await GmailConnectionCommands()
+        let result = Task { try await commands.named.searchGmailMessageID(123456) }
+        let command = try await commands.nextCommand()
+        expectNoDifference(command, "A001 UID SEARCH X-GM-MSGID 123456\r\n")
+        try await commands.respond("* SEARCH 42\r\nA001 OK searched\r\n")
+        let matchingUIDs = try await result.value.toArray()
+        expectNoDifference(matchingUIDs, [UID(42)])
+        try await commands.finish()
+    }
+
     // Detects trigger removal replacing the complete Gmail label set.
     @Test
     func namedConnectionRemovesOnlyTheSuppliedGmailLabel() async throws {
